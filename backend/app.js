@@ -10,9 +10,7 @@ const incomeRoutes = require('./routes/income');
 
 const app = express();
 
-
 app.set('trust proxy', 1);
-
 
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
@@ -22,7 +20,6 @@ if (process.env.NODE_ENV === 'production') {
     next();
   });
 }
-
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -36,16 +33,30 @@ app.use(helmet({
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
-    preload: true
-  }
+    preload: true,
+  },
 }));
 
+// ----- CORS -----
+// Allow FRONTEND_URL from .env, plus the common localhost dev ports.
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:3000',
+].filter(Boolean);
 
-app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
-
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow Postman/curl/same-origin requests that have no Origin header
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+}));
 
 app.use(express.json({ limit: '10kb' }));
-
 
 app.use((req, res, next) => {
   const sanitize = require('express-mongo-sanitize').sanitize;
@@ -54,15 +65,13 @@ app.use((req, res, next) => {
   next();
 });
 
-
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     https: req.secure || req.header('x-forwarded-proto') === 'https',
-    env: process.env.NODE_ENV
+    env: process.env.NODE_ENV,
   });
 });
-
 
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/gigs', gigRoutes);
