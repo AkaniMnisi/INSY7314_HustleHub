@@ -4,6 +4,8 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const gigRoutes = require('./routes/gigs');
 const adminRoutes = require('./routes/admin');
+const bookingRoutes = require('./routes/bookings');
+const incomeRoutes = require('./routes/income');
 const { generalLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -46,7 +48,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow Postman/curl/same-origin requests that have no Origin header
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error(`CORS: origin ${origin} not allowed`));
@@ -74,6 +75,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/income', incomeRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
