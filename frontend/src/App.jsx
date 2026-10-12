@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import ProtectedRoute from './components/ProtectedRoute';
 
 import Home from './pages/Home';
 import BrowseGigs from './pages/BrowseGigs';
@@ -19,11 +20,23 @@ export default function App() {
           <Navbar />
           <main className="app-main">
             <Routes>
+              {/* Public */}
               <Route path="/" element={<Home />} />
               <Route path="/gigs" element={<BrowseGigs />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={<Dashboard />} />
+
+              {/* Freelancer only */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['freelancer']}>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Errors */}
               <Route path="/403" element={<Forbidden />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
