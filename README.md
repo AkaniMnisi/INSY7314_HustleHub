@@ -85,4 +85,3 @@ GitHub Actions runs backend tests, frontend tests/build, and the Postman collect
 - [ ] GitHub Actions workflow completed successfully and evidence/artifact saved.
 - [ ] Demo video recorded from a working end-to-end setup and its accessible link added below.
 
-**Demonstration video:** _Add the actual accessible video URL after recording._
