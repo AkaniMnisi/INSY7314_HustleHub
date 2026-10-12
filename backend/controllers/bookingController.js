@@ -25,14 +25,14 @@ exports.createBooking = async (req, res) => {
     }
 
     // Prevent freelancers booking their own gigs
-    if (String(gig.freelancerId) === String(req.user._id)) {
+    if (String(gig.freelancerId) === String(req.user.id)) {
       return res.status(400).json({ error: 'You cannot book your own gig' });
     }
 
     // Create the booking
     const booking = await Booking.create({
       gigId: gig._id,
-      clientId: req.user._id,
+      clientId: req.user.id,
       freelancerId: gig.freelancerId,
       amount: gig.price,
       status: 'confirmed',
@@ -44,7 +44,7 @@ exports.createBooking = async (req, res) => {
 
     await Transaction.create({
       bookingId: booking._id,
-      clientId: req.user._id,
+      clientId: req.user.id,
       freelancerId: gig.freelancerId,
       gigId: gig._id,
       amount: gig.price,
@@ -76,9 +76,9 @@ exports.listBookings = async (req, res) => {
     let filter = {};
 
     if (req.user.role === 'client') {
-      filter.clientId = req.user._id;
+      filter.clientId = req.user.id;
     } else if (req.user.role === 'freelancer') {
-      filter.freelancerId = req.user._id;
+      filter.freelancerId = req.user.id;
     }
     // admin: no filter — sees all
 

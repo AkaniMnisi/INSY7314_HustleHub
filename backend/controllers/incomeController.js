@@ -10,7 +10,7 @@ const TAX_RATE = 0.15;
 exports.getIncome = async (req, res) => {
   try {
     const transactions = await Transaction.find({
-      freelancerId: req.user._id,
+      freelancerId: req.user.id,
       status: 'completed',
     })
       .populate('gigId', 'title')
