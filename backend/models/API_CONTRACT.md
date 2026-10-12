@@ -41,4 +41,4 @@ GET /freelancers/income (freelancer) → 200 { totalIncome, totalTax, transactio
 ## Admin
 GET /admin/users (admin) → 200 [ { _id, name, email, role } ]
 GET /admin/transactions (admin) → 200 [ { _id, ... } ]
-PUT /admin/users/:id/suspend (admin) → 200 { message, user }
+PUT /admin/users/:id/suspend (admin) → 200 { message, user: { _id, name, email, role: 'suspended' } }
