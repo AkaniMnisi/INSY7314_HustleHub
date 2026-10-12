@@ -1,46 +1,96 @@
-const crypto = require('crypto');
-const mongoose = require('mongoose');
-const Gig = require('../models/Gig');
 const Booking = require('../models/Booking');
+const Gig = require('../models/Gig');
 const Transaction = require('../models/Transaction');
 
-exports.createBooking = async (req, res, next) => {
-  let booking;
+/**
+ * POST /api/bookings
+ * Body: { gigId }
+ * Auth: client only
+ */
+exports.createBooking = async (req, res) => {
   try {
-    const { gigId } = req.body || {};
-    if (!gigId || !mongoose.isValidObjectId(gigId)) return res.status(400).json({ error: 'A valid gigId is required' });
-    const gig = await Gig.findOne({ _id: gigId, status: 'active' });
-    if (!gig) return res.status(404).json({ error: 'Active gig not found' });
-    if (gig.freelancerId.toString() === req.user.id) return res.status(400).json({ error: 'You cannot book your own gig' });
-    const freelancer = await require('../models/User').findById(gig.freelancerId).select('_id isSuspended');
-    if (!freelancer || freelancer.isSuspended) return res.status(400).json({ error: 'Freelancer is unavailable' });
-    const amount = Number(gig.price.toFixed(2));
-    const configuredRate = Number(process.env.TAX_RATE ?? 0.15);
-    const taxRate = Number.isFinite(configuredRate) ? Math.min(1, Math.max(0, configuredRate)) : 0.15;
-    const tax = Number((amount * taxRate).toFixed(2));
-    booking = await Booking.create({ gigId: gig._id, clientId: req.user.id, freelancerId: gig.freelancerId, amount, confirmationCode: `HH-${crypto.randomBytes(5).toString('hex').toUpperCase()}` });
-    let transaction;
-    try {
-      transaction = await Transaction.create({ bookingId: booking._id, gigId: gig._id, clientId: req.user.id, freelancerId: gig.freelancerId, amount, tax, taxRate, status: 'completed' });
-    } catch (err) {
-      await Booking.deleteOne({ _id: booking._id });
-      throw err;
+    const { gigId } = req.body;
+
+    if (!gigId) {
+      return res.status(400).json({ error: 'gigId is required' });
     }
-    res.status(201).json({ booking, transaction, confirmation: 'Booking confirmed. This is a simulated transaction; no payment was processed.' });
-  } catch (err) { next(err); }
+
+    const gig = await Gig.findById(gigId);
+    if (!gig) {
+      return res.status(404).json({ error: 'Gig not found' });
+    }
+
+    if (gig.status !== 'active') {
+      return res.status(400).json({ error: 'This gig is not currently active' });
+    }
+
+    // Prevent freelancers booking their own gigs
+    if (String(gig.freelancerId) === String(req.user.id)) {
+      return res.status(400).json({ error: 'You cannot book your own gig' });
+    }
+
+    // Create the booking
+    const booking = await Booking.create({
+      gigId: gig._id,
+      clientId: req.user.id,
+      freelancerId: gig.freelancerId,
+      amount: gig.price,
+      status: 'confirmed',
+    });
+
+    // Create the associated transaction
+    const taxRate = 0.15;
+    const tax = Math.round(gig.price * taxRate * 100) / 100;
+
+    await Transaction.create({
+      bookingId: booking._id,
+      clientId: req.user.id,
+      freelancerId: gig.freelancerId,
+      gigId: gig._id,
+      amount: gig.price,
+      tax,
+      status: 'completed',
+    });
+
+    const populated = await Booking.findById(booking._id)
+      .populate('gigId', 'title price category')
+      .populate('freelancerId', 'name')
+      .populate('clientId', 'name');
+
+    res.status(201).json({ booking: populated });
+  } catch (err) {
+    console.error('createBooking error:', err);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
 };
-exports.getMyBookings = async (req, res, next) => {
+
+/**
+ * GET /api/bookings
+ * Auth: any logged-in user
+ * - Clients see bookings they made
+ * - Freelancers see bookings on their gigs
+ * - Admins see all
+ */
+exports.listBookings = async (req, res) => {
   try {
-    const filter = req.user.role === 'freelancer' ? { freelancerId: req.user.id } : { clientId: req.user.id };
-    const bookings = await Booking.find(filter).populate('gigId', 'title description category').populate('clientId', 'name email').populate('freelancerId', 'name email').sort({ createdAt: -1 });
+    let filter = {};
+
+    if (req.user.role === 'client') {
+      filter.clientId = req.user.id;
+    } else if (req.user.role === 'freelancer') {
+      filter.freelancerId = req.user.id;
+    }
+    // admin: no filter — sees all
+
+    const bookings = await Booking.find(filter)
+      .populate('gigId', 'title price category')
+      .populate('freelancerId', 'name')
+      .populate('clientId', 'name')
+      .sort({ createdAt: -1 });
+
     res.json(bookings);
-  } catch (err) { next(err); }
-};
-exports.getClientBookings = async (req, res, next) => {
-  try { res.json(await Booking.find({ clientId: req.user.id }).populate('gigId', 'title price category').populate('freelancerId', 'name').sort({ createdAt: -1 })); }
-  catch (err) { next(err); }
-};
-exports.getFreelancerBookings = async (req, res, next) => {
-  try { res.json(await Booking.find({ freelancerId: req.user.id }).populate('gigId', 'title price category').populate('clientId', 'name email').sort({ createdAt: -1 })); }
-  catch (err) { next(err); }
+  } catch (err) {
+    console.error('listBookings error:', err);
+    res.status(500).json({ error: 'Failed to load bookings' });
+  }
 };

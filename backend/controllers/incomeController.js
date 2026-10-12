@@ -1,11 +1,49 @@
 const Transaction = require('../models/Transaction');
-exports.getIncome = async (req, res, next) => {
+
+const TAX_RATE = 0.15;
+
+/**
+ * GET /api/income
+ * Auth: freelancer only
+ * Returns totals + per-transaction breakdown for the logged-in freelancer.
+ */
+exports.getIncome = async (req, res) => {
   try {
-    const transactions = await Transaction.find({ freelancerId: req.user.id, status: 'completed' }).populate('gigId', 'title category').populate('clientId', 'name').sort({ createdAt: -1 });
-    const totalIncome = Number(transactions.reduce((sum, t) => sum + t.amount, 0).toFixed(2));
-    const totalTax = Number(transactions.reduce((sum, t) => sum + t.tax, 0).toFixed(2));
-    const configuredRate = Number(process.env.TAX_RATE ?? 0.15);
-    const taxRate = Number.isFinite(configuredRate) ? Math.min(1, Math.max(0, configuredRate)) : 0.15;
-    res.json({ totalIncome, totalTax, netIncome: Number((totalIncome - totalTax).toFixed(2)), transactionCount: transactions.length, taxRate, transactions, note: 'Tax is a configurable illustrative assessment estimate, not professional tax advice.' });
-  } catch (err) { next(err); }
+    const transactions = await Transaction.find({
+      freelancerId: req.user.id,
+      status: 'completed',
+    })
+      .populate('gigId', 'title')
+      .sort({ createdAt: -1 });
+
+    const totalIncome = transactions.reduce(
+      (sum, t) => sum + (Number(t.amount) || 0),
+      0
+    );
+    const taxOwed = transactions.reduce(
+      (sum, t) => sum + (Number(t.tax) || 0),
+      0
+    );
+    const netIncome = totalIncome - taxOwed;
+
+    const breakdown = transactions.map((t) => ({
+      _id: t._id,
+      gigTitle: t.gigId?.title || 'Gig',
+      amount: t.amount,
+      tax: t.tax,
+      date: t.createdAt,
+    }));
+
+    res.json({
+      totalIncome: Math.round(totalIncome * 100) / 100,
+      taxRate: TAX_RATE,
+      taxOwed: Math.round(taxOwed * 100) / 100,
+      netIncome: Math.round(netIncome * 100) / 100,
+      transactionCount: transactions.length,
+      breakdown,
+    });
+  } catch (err) {
+    console.error('getIncome error:', err);
+    res.status(500).json({ error: 'Failed to calculate income' });
+  }
 };

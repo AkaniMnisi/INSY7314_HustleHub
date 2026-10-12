@@ -1,12 +1,20 @@
 const express = require('express');
+const router = express.Router();
+const { createBooking, listBookings } = require('../controllers/bookingController');
 const { verifyToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
 const { bookingLimiter } = require('../middleware/rateLimiter');
-const ctrl = require('../controllers/bookingController');
-const router = express.Router();
-router.use(verifyToken);
-router.post('/', bookingLimiter, requireRole('client'), ctrl.createBooking);
-router.get('/my', requireRole('client', 'freelancer'), ctrl.getMyBookings);
-router.get('/client', requireRole('client'), ctrl.getClientBookings);
-router.get('/freelancer', requireRole('freelancer'), ctrl.getFreelancerBookings);
+
+// POST /api/bookings — client only, rate-limited
+router.post(
+  '/',
+  verifyToken,
+  requireRole('client'),
+  bookingLimiter,
+  createBooking
+);
+
+// GET /api/bookings — any authenticated user (role-filtered in the controller)
+router.get('/', verifyToken, listBookings);
+
 module.exports = router;
