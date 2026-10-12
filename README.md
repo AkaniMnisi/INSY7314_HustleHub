@@ -1,4 +1,4 @@
-# HustleHub
+# HustleHub — INSY7314 POE Part 2
 
 A secure freelance marketplace built on the **MERN stack** (MongoDB, Express, React, Node.js). Freelancers advertise services; clients browse, book, and pay (simulated). The platform tracks income, calculates estimated tax, and exposes admin controls — all with security as a first-class concern.
 
