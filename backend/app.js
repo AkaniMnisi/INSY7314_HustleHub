@@ -5,6 +5,8 @@ const authRoutes = require('./routes/auth');
 const gigRoutes = require('./routes/gigs');
 const adminRoutes = require('./routes/admin');
 const { generalLimiter } = require('./middleware/rateLimiter');
+const bookingRoutes = require('./routes/bookings');
+const incomeRoutes = require('./routes/income');
 
 const app = express();
 
@@ -74,6 +76,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/admin', adminRoutes);
+
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/freelancers/income', incomeRoutes);
+
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

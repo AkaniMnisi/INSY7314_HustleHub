@@ -1,0 +1,12 @@
+const express = require('express');
+const { verifyToken } = require('../middleware/auth');
+const { requireRole } = require('../middleware/role');
+const { bookingLimiter } = require('../middleware/rateLimiter');
+const ctrl = require('../controllers/bookingController');
+const router = express.Router();
+router.use(verifyToken);
+router.post('/', bookingLimiter, requireRole('client'), ctrl.createBooking);
+router.get('/my', requireRole('client', 'freelancer'), ctrl.getMyBookings);
+router.get('/client', requireRole('client'), ctrl.getClientBookings);
+router.get('/freelancer', requireRole('freelancer'), ctrl.getFreelancerBookings);
+module.exports = router;
