@@ -1,0 +1,324 @@
+{
+  "info": {
+    "name": "HustleHub POE Part 2 API Tests",
+    "description": "Authentication, gigs, booking, income and role security tests. Uses a disposable test database only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "clientToken",
+      "value": ""
+    },
+    {
+      "key": "freelancerToken",
+      "value": ""
+    },
+    {
+      "key": "gigId",
+      "value": ""
+    },
+    {
+      "key": "bookingId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health check",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('API health is ok', () => pm.response.to.have.status(200));",
+              "pm.test('Status field exists', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Register client",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"POE Client\",\n  \"email\": \"poe-client-{{$guid}}@example.com\",\n  \"password\": \"TestPass123!\",\n  \"role\": \"client\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Client registration succeeds', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.test('Returns token and safe user', () => { pm.expect(data.token).to.be.a('string'); pm.expect(data.user.password).to.be.undefined; });",
+              "pm.collectionVariables.set('clientToken', data.token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Register freelancer",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"POE Freelancer\",\n  \"email\": \"poe-freelancer-{{$guid}}@example.com\",\n  \"password\": \"TestPass123!\",\n  \"role\": \"freelancer\"\n}"
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Freelancer registration succeeds', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.collectionVariables.set('freelancerToken', data.token);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reject unauthenticated gig creation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Test Gig\",\"description\":\"A useful and sufficiently long service description\",\"price\":100,\"category\":\"Design\"}"
+        },
+        "url": "{{baseUrl}}/gigs"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Protected gig creation requires JWT', () => pm.response.to.have.status(401));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create gig as freelancer",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{freelancerToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"POE Test Design Gig\",\n  \"description\": \"A sufficiently detailed service description for testing\",\n  \"price\": 250,\n  \"category\": \"Design\"\n}"
+        },
+        "url": "{{baseUrl}}/gigs"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Gig created', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.collectionVariables.set('gigId', data._id);",
+              "pm.test('Gig has freelancer owner', () => pm.expect(data.freelancerId).to.be.a('string').and.not.empty);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Browse gigs",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/gigs"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Browse returns array', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an('array'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Book gig as client",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"gigId\":\"{{gigId}}\"}"
+        },
+        "url": "{{baseUrl}}/bookings"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Booking created', () => pm.response.to.have.status(201));",
+              "var data = pm.response.json();",
+              "pm.test('Booking and transaction are linked', () => { pm.expect(data.booking._id).to.eql(data.transaction.bookingId); pm.expect(data.transaction.amount).to.eql(data.booking.amount); });",
+              "pm.collectionVariables.set('bookingId', data.booking._id);",
+              "pm.collectionVariables.set('transactionId', data.transaction._id);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Client forbidden from income endpoint",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/freelancers/income"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Client cannot access freelancer income', () => pm.response.to.have.status(403));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Freelancer income summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{freelancerToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/freelancers/income"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Income summary available to freelancer', () => pm.response.to.have.status(200));",
+              "var data = pm.response.json();",
+              "pm.test('Income fields are present', () => { pm.expect(data.totalIncome).to.be.a('number'); pm.expect(data.totalTax).to.be.a('number'); pm.expect(data.netIncome).to.be.a('number'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Client bookings",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/bookings/my"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Client can view own bookings', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.be.an('array'); });"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invalid gig ID rejected",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/gigs/not-a-valid-id"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Invalid ID gives 400', () => pm.response.to.have.status(400));"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}
