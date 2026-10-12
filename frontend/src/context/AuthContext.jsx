@@ -1,18 +1,64 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import api from '../api/axios';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  // Stub — full logic added in Step 5
-  const [user] = useState(null);
+const TOKEN_KEY = 'hh_token';
+const USER_KEY = 'hh_user';
 
-  const value = {
-    user,
-    loading: false,
-    login: async () => { throw new Error('Auth not implemented yet'); },
-    register: async () => { throw new Error('Auth not implemented yet'); },
-    logout: () => {},
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  /* Restore session on mount */
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(USER_KEY);
+      if (stored) setUser(JSON.parse(stored));
+    } catch {
+      localStorage.removeItem(USER_KEY);
+    }
+    setLoading(false);
+  }, []);
+
+  /* ---- Register ---- */
+  const register = async ({ name, email, password, role }) => {
+    const { data } = await api.post('/auth/register', {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role,
+    });
+    return data;
   };
+
+  /* ---- Login ---- */
+  const login = async (email, password) => {
+    const { data } = await api.post('/auth/login', {
+      email: email.trim().toLowerCase(),
+      password,
+    });
+
+    // Backend may return { token, user } or { accessToken, user } — handle both
+    const token = data.token || data.accessToken;
+    const loggedInUser = data.user || data;
+
+    if (!token) throw new Error('No token returned from server.');
+
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(loggedInUser));
+    setUser(loggedInUser);
+    return loggedInUser;
+  };
+
+  /* ---- Logout ---- */
+  const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setUser(null);
+  };
+
+  const value = { user, loading, register, login, logout };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
