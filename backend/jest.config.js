@@ -1,4 +1,14 @@
 module.exports = {
   testEnvironment: 'node',
-  testTimeout: 10000
+  testTimeout: 30000,
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testMatch: ['**/tests/**/*.test.js'],
+  testPathIgnorePatterns: ['/node_modules/', '/setup.js$/'],
+  collectCoverageFrom: [
+    'app.js',
+    'controllers/**/*.js',
+    'middleware/**/*.js',
+    'models/**/*.js',
+    'routes/**/*.js'
+  ]
 };

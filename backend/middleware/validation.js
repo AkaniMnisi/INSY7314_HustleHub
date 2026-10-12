@@ -8,7 +8,7 @@ const handleErrors = (req, res, next) => {
   next();
 };
 
-const validateRegister = [
+exports.validateRegister = [
   body('name').trim().isLength({ min: 2 }).withMessage('Name too short'),
   body('email').isEmail().withMessage('Invalid email'),
   body('password')
@@ -18,17 +18,18 @@ const validateRegister = [
   handleErrors
 ];
 
-const validateLogin = [
-  body('email').isEmail(),
-  body('password').notEmpty(),
+exports.validateLogin = [
+  body('email').isEmail().withMessage('Invalid email'),
+  body('password').notEmpty().withMessage('Password required'),
   handleErrors
 ];
 
-const validateGig = [
-  body('title').trim().notEmpty(),
-  body('price').isFloat({ min: 0 }),
-  body('category').isIn(['Design', 'Development', 'Writing', 'Marketing', 'Other']),
+exports.validateGig = [
+  body('title').trim().notEmpty().withMessage('Title required'),
+  body('description').trim().notEmpty().withMessage('Description required'),
+  body('price').isFloat({ min: 0 }).withMessage('Price must be positive'),
+  body('category')
+    .isIn(['Design', 'Development', 'Writing', 'Marketing', 'Other'])
+    .withMessage('Invalid category'),
   handleErrors
 ];
-
-module.exports = { validateRegister, validateLogin, validateGig };

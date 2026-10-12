@@ -8,15 +8,10 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
-// ─────────────────────────────────────────────────────────
-// HTTPS ENFORCEMENT (Production only)
-// ─────────────────────────────────────────────────────────
-// In production, hosting platforms (Render, Railway, Vercel, Azure)
-// terminate SSL at their reverse proxy and forward requests with
-// the `x-forwarded-proto` header. This middleware redirects any
-// insecure HTTP request to HTTPS.
-//
-// Locally, NODE_ENV=development, so this is skipped and HTTP works fine.
+
+app.set('trust proxy', 1);
+
+
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.header('x-forwarded-proto') !== 'https') {
@@ -26,12 +21,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Trust the reverse proxy so req.protocol works correctly behind Nginx/Render/etc.
-app.set('trust proxy', 1);
 
-// ─────────────────────────────────────────────────────────
-// SECURITY HEADERS
-// ─────────────────────────────────────────────────────────
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -41,30 +31,20 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:'],
     },
   },
-  // HSTS: forces browsers to use HTTPS for future requests
   hsts: {
-    maxAge: 31536000, // 1 year in seconds
+    maxAge: 31536000,
     includeSubDomains: true,
     preload: true
   }
 }));
 
-// ─────────────────────────────────────────────────────────
-// CORS
-// ─────────────────────────────────────────────────────────
-app.use(cors({
-  origin: process.env.FRONTEND_URL,
-  credentials: true
-}));
 
-// ─────────────────────────────────────────────────────────
-// BODY PARSING
-// ─────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10kb' })); // Limit body size to prevent abuse
+app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
 
-// ─────────────────────────────────────────────────────────
-// SANITIZATION (Express 5 compatible)
-// ─────────────────────────────────────────────────────────
+
+app.use(express.json({ limit: '10kb' }));
+
+
 app.use((req, res, next) => {
   const sanitize = require('express-mongo-sanitize').sanitize;
   if (req.body) sanitize(req.body);
@@ -72,9 +52,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─────────────────────────────────────────────────────────
-// HEALTH CHECK
-// ─────────────────────────────────────────────────────────
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -83,16 +61,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ─────────────────────────────────────────────────────────
-// ROUTES
-// ─────────────────────────────────────────────────────────
+
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/admin', adminRoutes);
 
-// ─────────────────────────────────────────────────────────
-// GLOBAL ERROR HANDLER (must be last)
-// ─────────────────────────────────────────────────────────
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   const message = process.env.NODE_ENV === 'production'
