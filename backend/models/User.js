@@ -25,7 +25,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['client', 'freelancer', 'admin', 'suspended'],
       default: 'client'
-    }
+    },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
+    refreshTokenHash: { type: String, default: null, select: false }
   },
   { timestamps: true }
 );

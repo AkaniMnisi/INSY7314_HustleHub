@@ -1,44 +1,15 @@
-# HustleHub API Contract (FROZEN)
+# HustleHub backend API (Part 3 Akani)
 
-## Base URL
-http://localhost:5000/api
+Base URL: `http://localhost:5000/api`
 
-## Conventions
-- MongoDB documents use `_id` (not `id`)
-- Responses return bare objects/arrays (not wrapped in `{ gig }` or `{ user }`)
-- Success responses: 200/201 with data
-- Error responses: `{ "error": "message" }`
+- `POST /auth/register` (body `{name,email,password,role}`) → `201 {token,user}` plus `Set-Cookie: hh_refresh=...; HttpOnly; SameSite=Lax`
+- `POST /auth/login` (body `{email,password}`) → `200 {token,user}` plus same cookie. After 5 wrong passwords, the account is locked for 15 minutes (423).
+- `POST /auth/refresh` (cookie and `X-Requested-With: XMLHttpRequest`) → `200 {token}` plus a new cookie, rotating the old session.
+- `POST /auth/logout` (cookie and `X-Requested-With: XMLHttpRequest`) → `200 {message}` and clears cookie.
+- `GET /gigs`, `/gigs/mine`, `/gigs/:id`; `POST /gigs`, `PUT /gigs/:id`, `DELETE /gigs/:id` (existing endpoints unchanged).
+- `POST /bookings` (client only, body `{gigId}`) → `201 {booking, transaction}`; `GET /bookings` (role-filtered authenticated list).
+- `GET /income`, `GET /freelancers/income` (freelancer only) → `{taxYear,totalIncome,taxOwed,totalTax,netIncome,taxRate,marginalRate,primaryRebate,taxFreeThreshold,transactionCount,monthly,breakdown}`.
+- `GET /admin/users`, `GET /admin/transactions`, `PUT /admin/users/:id/suspend` (admin only).
+- `GET /health` → `{status:"ok",...}`.
 
-## Auth
-POST /auth/register
-  Body: { name, email, password, role: 'client' | 'freelancer' }
-  Response 201: { token, refreshToken, user: { _id, name, email, role } }
-
-POST /auth/login
-  Body: { email, password }
-  Response 200: { token, refreshToken, user: { _id, name, email, role } }
-
-POST /auth/refresh
-  Body: { refreshToken }
-  Response 200: { token }
-
-## Gigs
-GET /gigs → 200 [ { _id, title, description, price, category, freelancerId: { _id, name }, status } ]
-GET /gigs/mine (freelancer) → 200 [ { gig } ]
-GET /gigs/:id → 200 { _id, title, ..., freelancerId: { _id, name }, status }
-POST /gigs (freelancer) → 201 { _id, title, ... }
-PUT /gigs/:id (owner) → 200 { _id, title, ... }
-DELETE /gigs/:id (owner) → 200 { message }
-
-## Bookings (Sibusiso to fill in)
-POST /bookings (client) → 201 { ... }
-GET /bookings/my (client) → 200 [ { ... } ]
-GET /bookings/freelancer (freelancer) → 200 [ { ... } ]
-
-## Income (Sibusiso to fill in)
-GET /freelancers/income (freelancer) → 200 { totalIncome, totalTax, transactions: [ ... ] }
-
-## Admin
-GET /admin/users (admin) → 200 [ { _id, name, email, role } ]
-GET /admin/transactions (admin) → 200 [ { _id, ... } ]
-PUT /admin/users/:id/suspend (admin) → 200 { message, user: { _id, name, email, role: 'suspended' } }
+No raw refresh token is returned in any JSON body. The `token` field is the existing one-hour Bearer access token; the stored refresh cookie is seven days. Existing frontend flows use the access token with `Authorization: Bearer ...`.

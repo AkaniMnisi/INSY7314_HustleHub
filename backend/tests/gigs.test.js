@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../app');
 
-describe('Gigs', () => {
+(process.env.MONGO_URI ? describe : describe.skip)('Gigs', () => {
   let freelancerToken;
 
   beforeAll(async () => {

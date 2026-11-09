@@ -7,8 +7,6 @@ const adminRoutes = require('./routes/admin');
 const bookingRoutes = require('./routes/bookings');
 const incomeRoutes = require('./routes/income');
 const { generalLimiter } = require('./middleware/rateLimiter');
-const bookingRoutes = require('./routes/bookings');
-const incomeRoutes = require('./routes/income');
 
 const app = express();
 
@@ -40,7 +38,6 @@ app.use(helmet({
 }));
 
 // ----- CORS -----
-// Allow FRONTEND_URL from .env, plus the common localhost dev ports.
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
@@ -74,15 +71,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ----- Routes -----
 app.use('/api/auth', generalLimiter, authRoutes);
 app.use('/api/gigs', gigRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/income', incomeRoutes);
-
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/freelancers/income', incomeRoutes);
-
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -92,4 +86,4 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: message });
 });
 
-module.exports = app;
+module.exports = app;np
