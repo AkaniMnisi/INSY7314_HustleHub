@@ -1,5 +1,7 @@
+const { generalLimiter } = require('../middleware/rateLimiter');
 const express = require('express');
 const router = express.Router();
+router.use(generalLimiter);
 const { getIncome } = require('../controllers/incomeController');
 const { verifyToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');

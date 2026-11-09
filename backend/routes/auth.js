@@ -64,7 +64,7 @@ router.post('/register', authLimiter, validateRegister, async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const role = req.body.role === 'freelancer' ? 'freelancer' : 'client';
-    if (await User.findOne({ email })) {
+    if (await User.findOne({ email: { $eq: email } })) {
       logger.warn('auth.register.duplicate', { email: logger.maskEmail(email), requestId: req.id });
       return res.status(409).json({ error: 'Email already exists' });
     }
@@ -81,7 +81,7 @@ router.post('/register', authLimiter, validateRegister, async (req, res) => {
 router.post('/login', authLimiter, validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: { $eq: email } });
     const meta = { email: logger.maskEmail(email), requestId: req.id };
     if (!user) {
       logger.warn('auth.login.failed', { ...meta, reason: 'invalid_credentials' });

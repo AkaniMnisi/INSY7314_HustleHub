@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Gig = require('../models/Gig');
 const Transaction = require('../models/Transaction');
@@ -15,6 +16,10 @@ exports.createBooking = async (req, res) => {
 
     if (!gigId) {
       return res.status(400).json({ error: 'gigId is required' });
+    }
+
+    if (typeof gigId !== 'string' || !mongoose.isObjectIdOrHexString(gigId)) {
+      return res.status(400).json({ error: 'Invalid gig ID' });
     }
 
     const gig = await Gig.findById(gigId);

@@ -4,7 +4,22 @@ const Gig = require('../models/Gig');
 exports.getAllGigs = async (req, res, next) => {
   try {
     const filter = { status: 'active' };
-    if (req.query.category) filter.category = req.query.category;
+    if (req.query.category) {
+      const allowedCategories = [
+        'Design', 'Development', 'Writing',
+        'Marketing', 'Other'
+      ];
+
+      const category = allowedCategories.find(
+        value => value === req.query.category
+      );
+
+      if (!category) {
+        return res.status(400).json({ error: 'Invalid category' });
+      }
+
+      filter.category = category;
+    }
     if (req.query.search) filter.$or = [
       { title: { $regex: escapeRegex(String(req.query.search).slice(0, 80)), $options: 'i' } },
       { description: { $regex: escapeRegex(String(req.query.search).slice(0, 80)), $options: 'i' } }
