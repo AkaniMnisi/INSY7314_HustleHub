@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('node:crypto');
 const helmet = require('helmet');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
@@ -11,6 +12,11 @@ const { generalLimiter } = require('./middleware/rateLimiter');
 const app = express();
 
 app.set('trust proxy', 1);
+
+app.use((req, res, next) => {
+  res.setHeader('X-Request-ID', crypto.randomUUID());
+  next();
+});
 
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
@@ -49,7 +55,9 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS: origin ${origin} not allowed`));
+    const err = new Error('CORS origin not allowed');
+    err.status = 403;
+    return callback(err);
   },
   credentials: true,
 }));
@@ -78,6 +86,10 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/income', incomeRoutes);
 
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   const message = process.env.NODE_ENV === 'production'
@@ -86,4 +98,4 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: message });
 });
 
-module.exports = app;np
+module.exports = app;
