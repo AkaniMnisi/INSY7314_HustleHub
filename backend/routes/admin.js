@@ -1,3 +1,4 @@
+const { generalLimiter } = require('../middleware/rateLimiter');
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
@@ -5,6 +6,7 @@ const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 
 const router = express.Router();
+router.use(generalLimiter);
 router.use(verifyToken, requireRole('admin'));
 
 router.get('/users', async (req, res) => {

@@ -1,3 +1,4 @@
+const { generalLimiter } = require('../middleware/rateLimiter');
 const express = require('express');
 const { verifyToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
@@ -5,6 +6,7 @@ const { validateGig } = require('../middleware/validation');
 const ctrl = require('../controllers/gigController');
 
 const router = express.Router();
+router.use(generalLimiter);
 
 
 router.get('/', ctrl.getAllGigs);

@@ -3,7 +3,9 @@ const router = express.Router();
 const { createBooking, listBookings } = require('../controllers/bookingController');
 const { verifyToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/role');
-const { bookingLimiter } = require('../middleware/rateLimiter');
+const { bookingLimiter, generalLimiter } = require('../middleware/rateLimiter');
+router.use(generalLimiter);
+
 
 // POST /api/bookings — client only, rate-limited
 router.post(
