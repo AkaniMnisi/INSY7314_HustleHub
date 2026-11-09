@@ -53,6 +53,8 @@ export function AuthProvider({ children }) {
 
   /* ---- Logout ---- */
   const logout = () => {
+    // Server clears the HttpOnly refresh cookie and revokes its stored hash.
+    api.post('/auth/logout').catch(() => {});
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);

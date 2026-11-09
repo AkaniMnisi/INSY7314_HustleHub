@@ -1,6 +1,8 @@
 const Booking = require('../models/Booking');
 const Gig = require('../models/Gig');
 const Transaction = require('../models/Transaction');
+const logger = require('../utils/logger');
+const { incrementalTax, taxYearStart, taxYearEnd } = require('../utils/tax');
 
 /**
  * POST /api/bookings
@@ -29,6 +31,20 @@ exports.createBooking = async (req, res) => {
       return res.status(400).json({ error: 'You cannot book your own gig' });
     }
 
+    // Tax for this booking = extra tax caused by this income, on top of what
+    // the freelancer already earned this tax year (see utils/tax.js).
+    const earnedSoFar = await Transaction.aggregate([
+      {
+        $match: {
+          freelancerId: gig.freelancerId,
+          status: 'completed',
+          createdAt: { $gte: taxYearStart(), $lt: taxYearEnd() },
+        },
+      },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
+    ]);
+    const tax = incrementalTax(earnedSoFar[0]?.total || 0, gig.price);
+
     // Create the booking
     const booking = await Booking.create({
       gigId: gig._id,
@@ -37,29 +53,52 @@ exports.createBooking = async (req, res) => {
       amount: gig.price,
       status: 'confirmed',
     });
-
-    // Create the associated transaction
-    const taxRate = 0.15;
-    const tax = Math.round(gig.price * taxRate * 100) / 100;
-
-    await Transaction.create({
-      bookingId: booking._id,
+    logger.info('booking.created', {
+      bookingId: String(booking._id),
+      gigId: String(gig._id),
       clientId: req.user.id,
-      freelancerId: gig.freelancerId,
-      gigId: gig._id,
+      freelancerId: String(gig.freelancerId),
       amount: gig.price,
-      tax,
-      status: 'completed',
+      requestId: req.id,
     });
+
+    // Create the associated transaction. Undo the booking if this fails.
+    let txn;
+    try {
+      txn = await Transaction.create({
+        bookingId: booking._id,
+        clientId: req.user.id,
+        freelancerId: gig.freelancerId,
+        gigId: gig._id,
+        amount: gig.price,
+        tax,
+        status: 'completed',
+      });
+      logger.info('transaction.recorded', {
+        transactionId: String(txn._id),
+        bookingId: String(booking._id),
+        amount: gig.price,
+        tax,
+        requestId: req.id,
+      });
+    } catch (txnErr) {
+      await Booking.deleteOne({ _id: booking._id });
+      logger.error('transaction.failed', {
+        bookingId: String(booking._id),
+        error: txnErr.message,
+        requestId: req.id,
+      });
+      throw txnErr;
+    }
 
     const populated = await Booking.findById(booking._id)
       .populate('gigId', 'title price category')
       .populate('freelancerId', 'name')
       .populate('clientId', 'name');
 
-    res.status(201).json({ booking: populated });
+    res.status(201).json({ booking: populated, transaction: txn });
   } catch (err) {
-    console.error('createBooking error:', err);
+    logger.error('booking.error', { error: err.message, stack: err.stack, requestId: req.id });
     res.status(500).json({ error: 'Failed to create booking' });
   }
 };
@@ -90,7 +129,7 @@ exports.listBookings = async (req, res) => {
 
     res.json(bookings);
   } catch (err) {
-    console.error('listBookings error:', err);
+    logger.error('booking.list.error', { error: err.message, stack: err.stack, requestId: req.id });
     res.status(500).json({ error: 'Failed to load bookings' });
   }
 };

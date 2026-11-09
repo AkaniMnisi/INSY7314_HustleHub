@@ -1,7 +1,7 @@
 const request = require('supertest');
 const app = require('../app');
 
-describe('Auth', () => {
+(process.env.MONGO_URI ? describe : describe.skip)('Auth', () => {
   it('registers a user', async () => {
     const res = await request(app).post('/api/auth/register').send({
       name: 'Test User',

@@ -3,7 +3,7 @@ module.exports = {
   testTimeout: 30000,
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   testMatch: ['**/tests/**/*.test.js'],
-  testPathIgnorePatterns: ['/node_modules/', '/setup.js$/'],
+  testPathIgnorePatterns: ['/node_modules/', '/smoke\\.node\\.test\\.js$'],
   collectCoverageFrom: [
     'app.js',
     'controllers/**/*.js',
