@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-
-/* ---------- helpers ---------- */
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 function formatZAR(value) {
   return new Intl.NumberFormat('en-ZA', {
@@ -13,46 +21,6 @@ function formatZAR(value) {
     maximumFractionDigits: 2,
   }).format(Number(value) || 0);
 }
-
-function formatDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-ZA', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-/**
- * Normalise the backend response into a stable shape regardless of
- * minor field-name differences.
- */
-function normaliseIncome(raw) {
-  const r = raw || {};
-  const totalIncome = Number(r.totalIncome ?? r.total ?? r.grossIncome ?? 0);
-  const taxRate =
-    r.taxRate !== undefined
-      ? Number(r.taxRate)
-      : r.taxPercentage !== undefined
-      ? Number(r.taxPercentage) / 100
-      : 0.15;
-  const taxOwed = Number(r.taxOwed ?? r.tax ?? totalIncome * taxRate);
-  const netIncome = Number(r.netIncome ?? r.net ?? totalIncome - taxOwed);
-  const breakdown = Array.isArray(r.breakdown)
-    ? r.breakdown
-    : Array.isArray(r.transactions)
-    ? r.transactions
-    : [];
-  const transactionCount = Number(
-    r.transactionCount ?? r.count ?? breakdown.length
-  );
-
-  return { totalIncome, taxRate, taxOwed, netIncome, breakdown, transactionCount };
-}
-
-/* ---------- component ---------- */
 
 export default function Income() {
   const { user } = useAuth();
@@ -66,10 +34,9 @@ export default function Income() {
     (async () => {
       try {
         const res = await api.get('/income');
-        if (alive) setData(normaliseIncome(res.data));
+        if (alive) setData(res.data);
       } catch (err) {
         if (!alive) return;
-        // 404 = endpoint not built yet (Sibusiso still working on it)
         if (err.status === 404) {
           setNotReady(true);
         } else {
@@ -84,166 +51,118 @@ export default function Income() {
     };
   }, []);
 
+  if (loading) return <div className="page-loading">Loading financial insights…</div>;
+
+  if (notReady) {
+    return (
+      <div className="container">
+        <div className="empty">
+          <h3>Income tracking is coming soon</h3>
+          <p>Your totals will appear here as soon as the API is live.</p>
+          <Link to="/dashboard" className="btn btn-primary mt-2">Back to dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) return <div className="banner banner-error" role="alert">{error}</div>;
+  if (!data) return null;
+
+  // Ensure we have arrays to prevent Recharts from crashing
+  const monthlyData = data.monthly || [];
+  const breakdown = data.breakdown || [];
+
   return (
     <div className="container">
       <header className="page-header">
-        <h1>Income &amp; Estimated Tax</h1>
-        <p>
-          Track earnings from bookings
-          {user?.name ? ` for ${user.name}` : ''} and view an estimate of your
-          tax obligation.
-        </p>
+        <h1>Income &amp; Tax Dashboard</h1>
+        <p>Track earnings, estimated SARS tax, and net income for {user?.name}.</p>
       </header>
 
-      {loading && <div className="page-loading">Loading income data…</div>}
-
-      {!loading && notReady && (
-        <div className="empty">
-          <h3>Income tracking is coming soon</h3>
-          <p>
-            The backend income endpoint hasn&apos;t been deployed yet. Your
-            totals will appear here as soon as the booking API is live.
+      {/* Top Summary Cards */}
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="gig-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <p className="text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>Gross Income</p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)', margin: '0.5rem 0' }}>
+            {formatZAR(data.totalIncome)}
           </p>
-          <Link to="/dashboard" className="btn btn-primary mt-2">
-            Back to dashboard
-          </Link>
         </div>
-      )}
-
-      {!loading && error && (
-        <div className="banner banner-error" role="alert">
-          {error}
+        <div className="gig-card" style={{ borderLeft: '4px solid var(--danger)' }}>
+          <p className="text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>Estimated Tax Owed</p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--danger)', margin: '0.5rem 0' }}>
+            {formatZAR(data.taxOwed)}
+          </p>
         </div>
-      )}
+        <div className="gig-card" style={{ borderLeft: '4px solid var(--success)' }}>
+          <p className="text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>Net Income</p>
+          <p style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)', margin: '0.5rem 0' }}>
+            {formatZAR(data.netIncome)}
+          </p>
+        </div>
+      </section>
 
-      {!loading && data && (
-        <>
-          {/* Top summary cards */}
-          <section
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '1rem',
-              marginTop: '1rem',
-            }}
-          >
-            <SummaryCard
-              label="Total earned"
-              value={formatZAR(data.totalIncome)}
-              hint={`${data.transactionCount} booking${
-                data.transactionCount === 1 ? '' : 's'
-              }`}
-              accent="primary"
-            />
-            <SummaryCard
-              label={`Estimated tax (${Math.round(data.taxRate * 100)}%)`}
-              value={formatZAR(data.taxOwed)}
-              hint="Approximate — verify with a tax professional"
-              accent="warning"
-            />
-            <SummaryCard
-              label="Net after tax"
-              value={formatZAR(data.netIncome)}
-              hint="What you take home"
-              accent="success"
-            />
-          </section>
+      {/* Recharts Bar Chart */}
+      <section className="gig-card" style={{ marginBottom: '2rem', padding: '2rem' }}>
+        <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Monthly Breakdown</h2>
+        {monthlyData.length > 0 ? (
+          <div style={{ width: '100%', height: 320 }}>
+            <ResponsiveContainer>
+              <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--gray-200)" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'var(--gray-500)' }} />
+                <YAxis tickFormatter={(val) => `R${val}`} axisLine={false} tickLine={false} tick={{ fill: 'var(--gray-500)' }} />
+                <Tooltip formatter={(value) => formatZAR(value)} cursor={{ fill: 'var(--gray-100)' }} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Bar dataKey="income" name="Income" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="tax" name="Tax" fill="var(--danger)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="text-muted">No monthly data available yet.</p>
+        )}
+      </section>
 
-          {/* Breakdown table */}
-          <section style={{ marginTop: '2rem' }}>
-            <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>
-              Transaction breakdown
-            </h2>
-
-            {data.breakdown.length === 0 ? (
-              <div className="empty">
-                <h3>No transactions yet</h3>
-                <p>
-                  Once a client books one of your gigs, the transaction will
-                  appear here.
-                </p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Gig</th>
-                      <th style={{ textAlign: 'right' }}>Amount</th>
-                      <th style={{ textAlign: 'right' }}>Tax</th>
-                      <th style={{ textAlign: 'right' }}>Net</th>
+      {/* Transaction Breakdown Table */}
+      <section>
+        <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Transaction Breakdown</h2>
+        {breakdown.length === 0 ? (
+          <div className="empty">
+            <h3>No transactions yet</h3>
+            <p>Once you complete a booking, it will appear here.</p>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Gig</th>
+                  <th style={{ textAlign: 'right' }}>Amount</th>
+                  <th style={{ textAlign: 'right' }}>Tax</th>
+                  <th style={{ textAlign: 'right' }}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {breakdown.map((b, i) => {
+                  const amount = Number(b.amount) || 0;
+                  const tax = Number(b.tax) || 0;
+                  const net = amount - tax;
+                  return (
+                    <tr key={b._id || i}>
+                      <td>{b.date ? new Date(b.date).toLocaleDateString('en-ZA') : '—'}</td>
+                      <td>{b.gigTitle || 'Gig'}</td>
+                      <td style={{ textAlign: 'right' }}>{formatZAR(amount)}</td>
+                      <td style={{ textAlign: 'right', color: 'var(--danger)' }}>−{formatZAR(tax)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatZAR(net)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {data.breakdown.map((b, i) => {
-                      const amount = Number(b.amount || b.price || 0);
-                      const tax = Number(b.tax ?? amount * data.taxRate);
-                      const net = amount - tax;
-                      return (
-                        <tr key={b._id || i}>
-                          <td>{formatDate(b.date || b.createdAt) || '—'}</td>
-                          <td>{b.gigTitle || b.title || 'Gig'}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            {formatZAR(amount)}
-                          </td>
-                          <td
-                            style={{
-                              textAlign: 'right',
-                              color: 'var(--warning)',
-                            }}
-                          >
-                            −{formatZAR(tax)}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                            {formatZAR(net)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ---------- small sub-component ---------- */
-
-function SummaryCard({ label, value, hint, accent }) {
-  const accentColour = {
-    primary: 'var(--primary)',
-    success: 'var(--success)',
-    warning: 'var(--warning)',
-  }[accent] || 'var(--gray-700)';
-
-  return (
-    <div
-      className="gig-card"
-      style={{ borderLeft: `4px solid ${accentColour}`, padding: '1rem 1.1rem' }}
-    >
-      <p className="text-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
-        {label}
-      </p>
-      <p
-        style={{
-          fontSize: '1.5rem',
-          fontWeight: 700,
-          margin: '0.35rem 0',
-          color: accentColour,
-        }}
-      >
-        {value}
-      </p>
-      {hint && (
-        <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>
-          {hint}
-        </p>
-      )}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
